@@ -12,12 +12,13 @@ PRINT = 'print:'
 ####################################
 # VARS
 ####################################
+cacheVar = None
+
 vars = {}
 inVar = False
 
 inString = False
 currentString = []
-lastString = ""
 
 
 
@@ -25,29 +26,36 @@ lastString = ""
 # ACTIONS
 ####################################
 def key_action(key: str, index: int):
+	global cacheVar
 	global vars, inVar
-	global inString, currentString, lastString
+	global inString, currentString
 
 	if index == 0:
 		currentString = []
-		lastString = ""
+		cacheVar = None
+
+
 
 	#REGISTERING VARS
 	if key == VAR:
 		inVar = True
 		return
 	elif inVar:
-		vars.update({key: lastString})
+		vars.update({key: cacheVar})
 		inVar = False
 		return
 
 
 
-	#LITTERAL STRING EDITS
-	if key.endswith(QUOTES):
+	#LITTERAL VARS WRITING
+	if key.isnumeric():
+		cacheVar = int(key)
+		return
+
+	if key.endswith(QUOTES): #is an string
 		currentString.append(key.strip(QUOTES))
 		inString = False
-		lastString = " ".join(currentString)
+		cacheVar = " ".join(currentString)
 		currentString = []
 		return
 	elif key.startswith(QUOTES):
@@ -62,12 +70,12 @@ def key_action(key: str, index: int):
 
 	#ACTIONS
 	if key in vars:
-		lastString = vars[key]
+		cacheVar = vars[key]
 		return
 
 	if key == PRINT:
-		print(lastString)
-		lastString = ""
+		print(cacheVar)
+		cacheVar = ""
 		return
 
 	
