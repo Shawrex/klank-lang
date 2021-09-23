@@ -3,6 +3,8 @@
 ####################################
 BACKLINE = ';'
 QUOTES = '"'
+TRUE = 'true'
+FALSE = 'false'
 
 VAR = 'var'
 PRINT = 'print:'
@@ -48,11 +50,18 @@ def key_action(key: str, index: int):
 
 
 	#LITTERAL VARS WRITING
-	if key.isnumeric():
+	if key == TRUE:
+		cacheVar = True
+		return
+	elif key == FALSE:
+		cacheVar = False
+		return
+
+	elif key.isnumeric(): #is an int
 		cacheVar = int(key)
 		return
 
-	if key.endswith(QUOTES): #is an string
+	elif key.endswith(QUOTES): #is an string
 		currentString.append(key.strip(QUOTES))
 		inString = False
 		cacheVar = " ".join(currentString)
