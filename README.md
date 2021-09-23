@@ -25,7 +25,7 @@ print: foo
 
 And it returns:
 ```
-True
+true
 Hello World!
 a string
 1234567890
