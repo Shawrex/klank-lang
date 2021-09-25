@@ -1,22 +1,24 @@
 """
 TOKEN TYPES
 """
-TT_EOL = 	'EOL'
-TT_VAR =	'VARIABLE'
-TT_INT =	'INTEGER'
-TT_STRING =	'STRING'
-TT_OP =		'OPERATOR'
-TT_SYMBOL =	'SYMBOL'
-TT_METHOD =	'METHOD'
+TT_EOL = 		'EOL'
+TT_VAR =		'VARIABLE'
+TT_INT =		'INTEGER'
+TT_STRING =		'STRING'
+TT_OP =			'OPERATOR'
+TT_KWORD =		'KEYWORD'
+TT_SYMBOL =		'SYMBOL'
+TT_METHOD =		'METHOD'
 
 
 
 """
 LEXIC
 """
+Var = 'Var'
 Digits = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
-Quote, Comparison, Then = '"', ':=', '>>>'
-Plus, Minus = '+', '-'
+Quote, Comparison, Then = '"', ':=', '>>'
+Equal, Plus, Minus = '=', '+', '-'
 Print, Test = 'Print:', 'Test:'
 
 vars = {}
@@ -66,47 +68,51 @@ class Lexer(object):
 				#skip spaces
 				self.skip_spaces()
 
-			if ch in Digits:
+			elif ch in Digits:
 				#then character is an int token
 				tokens.append(Token(TT_INT, self.build_int()))
 
-			if ch in (Plus, Minus):
+			elif ch in (Plus, Minus):
 				#token is an operator
 				self.step()
 				tokens.append(Token(TT_OP, ch))
 
-			if ch == Quote:
+			elif ch == Quote:
 				#then character is a string token
 				tokens.append(Token(TT_STRING, self.build_string()))
+			
+			elif ch == Equal:
+				#equal token
+				self.step()
+				tokens.append(Token(TT_SYMBOL, Equal))
+				
+			elif ch == 'V':
+				#Var ?
+				if (self.build_misc_name(Var)):
+					self.step()
+					tokens.append(Token(TT_KWORD, Var))
 
-			"""
-			MISC CREATION
-			"""
-			if ch == 'P':
-				#might be Print ?
+			elif ch == 'P':
+				#Print?
 				if (self.build_misc_name(Print)):
-					#is Print !
 					self.step()
 					tokens.append(Token(TT_METHOD, Print))
 
-			if ch == 'T':
-				#might be Print ?
+			elif ch == 'T':
+				#Test ?
 				if (self.build_misc_name(Test)):
-					#is Print !
 					self.step()
 					tokens.append(Token(TT_METHOD, Test))
 			
-			if ch == '>':
-				#might be Print ?
+			elif ch == '>':
+				#Then ?
 				if (self.build_misc_name(Then)):
-					#is Print !
 					self.step()
 					tokens.append(Token(TT_SYMBOL, Then))
 			
-			if ch == ':':
-				#might be Print ?
+			elif ch == ':':
+				#Comparison ?
 				if (self.build_misc_name(Comparison)):
-					#is Print !
 					self.step()
 					tokens.append(Token(TT_SYMBOL, Comparison))
 			
@@ -192,6 +198,15 @@ class Interpreter(object):
 	def execute_tokens(self):
 		while self.current_token is not None and self.current_token.type is not TT_EOL:
 
+			if self.current_token.type == TT_KWORD:
+				#Is a keyword like Var
+				token = self.current_token
+
+				if token.value == Var:
+					self.step()
+					self.make_variable()
+
+
 			if self.current_token.type == TT_METHOD:
 				#Is a method, check depending what the method does
 				token = self.current_token
@@ -210,17 +225,39 @@ class Interpreter(object):
 	
 
 
+	def make_variable(self):
+		if self.current_token.type is not TT_VAR:
+			self.error()
+		name = self.current_token.value
+		self.step()
+
+		if self.current_token.value is not Equal:
+			self.error()
+		self.step()
+
+		if self.current_token.type is TT_INT:
+			value = self.make_int()
+		elif self.current_token.type is TT_STRING:
+			value = self.current_token.value
+		else:
+			self.error()
+
+		vars.update({name: value})
+
 	def make_string(self):
 		result = ''
-		while self.current_token.type is not None and self.current_token.type in (TT_INT, TT_STRING):
+		while self.current_token.type is not None and self.current_token.type in (TT_INT, TT_STRING, TT_VAR):
 			token = self.current_token
 
 			if token.type == TT_INT:
 				result += str(self.make_int())
-				result += ' '
-			else:
+			elif token.type == TT_STRING:
 				result += token.value
-				result += ' '
+			else:
+				if token.value not in vars:
+					self.error()
+				result += str(vars[token.value])
+			result += ' '
 			self.step()
 
 		if result == '':
@@ -245,11 +282,14 @@ class Interpreter(object):
 	def make_test(self):
 		#get first value:
 		if self.current_token.type == TT_INT:
-			left_type = TT_INT
 			left = self.make_int()
 		elif self.current_token.type == TT_STRING:
-			left_type = TT_STRING
 			left = self.current_token.value
+			self.step()
+		elif self.current_token.type == TT_VAR:
+			if self.current_token.value not in vars:
+				self.error()
+			left = vars[self.current_token.value.value]
 			self.step()
 		else:
 			self.error()
@@ -261,10 +301,15 @@ class Interpreter(object):
 			self.error()
 
 		#get the second value
-		if self.current_token.type == TT_INT and left_type == TT_INT:
+		if self.current_token.type == TT_INT:
 			right = self.make_int()
-		elif self.current_token.type == TT_STRING and left_type == TT_STRING:
+		elif self.current_token.type == TT_STRING:
 			right = self.current_token.value
+			self.step()
+		elif self.current_token.type == TT_VAR:
+			if self.current_token.value not in vars:
+				self.error()
+			right = vars[self.current_token.value]
 			self.step()
 		else:
 			self.error()
@@ -288,7 +333,7 @@ def main():
 	for text in lines:
 		lexer = Lexer(text)
 		inter = Interpreter(lexer)
-		inter.print_tokens()
+		inter.execute_tokens()
 
 	input('\n\nPress enter to finish...')
 
