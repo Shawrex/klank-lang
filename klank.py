@@ -19,6 +19,8 @@ Quote, Comparison, Then = '"', ':=', '>>>'
 Plus, Minus = '+', '-'
 Print, Test = 'Print:', 'Test:'
 
+vars = {}
+
 
 
 """
@@ -99,15 +101,18 @@ class Lexer(object):
 				if (self.build_misc_name(Then)):
 					#is Print !
 					self.step()
-					tokens.append(Token(TT_METHOD, Then))
+					tokens.append(Token(TT_SYMBOL, Then))
 			
 			if ch == ':':
 				#might be Print ?
 				if (self.build_misc_name(Comparison)):
 					#is Print !
 					self.step()
-					tokens.append(Token(TT_METHOD, Comparison))
-				
+					tokens.append(Token(TT_SYMBOL, Comparison))
+			
+			else: 
+				#make a variable name
+				tokens.append(Token(TT_VAR, self.build_var_name()))
 			
 		return tokens
 
@@ -147,6 +152,13 @@ class Lexer(object):
 		for i in range(0, delta):
 			self.revert()
 		return False
+	
+	def build_var_name(self):
+		result = ''
+		while self.current_char is not None and not self.current_char.isspace():
+			result += self.current_char
+			self.step()
+		return result
 		
 
 
@@ -276,7 +288,7 @@ def main():
 	for text in lines:
 		lexer = Lexer(text)
 		inter = Interpreter(lexer)
-		inter.execute_tokens()
+		inter.print_tokens()
 
 	input('\n\nPress enter to finish...')
 
