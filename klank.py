@@ -239,6 +239,7 @@ class Interpreter(object):
 			value = self.make_int()
 		elif self.current_token.type is TT_STRING:
 			value = self.current_token.value
+			self.step()
 		else:
 			self.error()
 
@@ -289,7 +290,7 @@ class Interpreter(object):
 		elif self.current_token.type == TT_VAR:
 			if self.current_token.value not in vars:
 				self.error()
-			left = vars[self.current_token.value.value]
+			left = vars[self.current_token.value]
 			self.step()
 		else:
 			self.error()
@@ -333,6 +334,7 @@ def main():
 	for text in lines:
 		lexer = Lexer(text)
 		inter = Interpreter(lexer)
+		inter.print_tokens()
 		inter.execute_tokens()
 
 	input('\n\nPress enter to finish...')
