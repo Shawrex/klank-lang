@@ -23,9 +23,9 @@ Digits = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 L_Paranth, R_Paranth = '(', ')'
 L_Curl, R_Curl = '{', '}'
 Quote = '"'
-EqualTo, DifferentThan = '==', '!='
+EqualTo, DifferentThan, MoreThan, LessThan, MultipleOf = '==', '!=', '>', '<', '%='
 Equal, Plus, Minus = '=', '+', '-'
-Print, If = 'print', 'if'
+Print, If, While = 'print', 'if', 'while'
 
 vars = {}
 BannedChars = (Eol, L_Paranth, R_Paranth, L_Curl, R_Curl, Quote, Equal, Plus, Minus, '!')
@@ -82,79 +82,65 @@ class Lexer(object):
 				continue
 				
 			if ch == Var[0]:
-				#Var ?
 				if (self.build_misc_name(Var)):
 					tokens.append(Token(TT_KWORD, Var))
 					continue
 
 			if ch == Print[0]:
-				#Print?
 				if (self.build_misc_name(Print)):
 					tokens.append(Token(TT_METHOD, Print))
 					continue
+			
+			if ch == While[0]:
+				if (self.build_misc_name(While)):
+					tokens.append(Token(TT_METHOD, While))
+					continue
 
 			if ch == If[0]:
-				#Test ?
 				if (self.build_misc_name(If)):
 					tokens.append(Token(TT_METHOD, If))
 					continue
 			
 			if ch == EqualTo[0]:
-				#Comparison ?
 				if (self.build_misc_name(EqualTo)):
 					tokens.append(Token(TT_TEST, EqualTo))
 					continue
 				
 			if ch == DifferentThan[0]:
-				#Comparison ?
 				if (self.build_misc_name(DifferentThan)):
 					tokens.append(Token(TT_TEST, DifferentThan))
+					
+			if ch == MultipleOf[0]:
+				if (self.build_misc_name(MultipleOf)):
+					tokens.append(Token(TT_TEST, MultipleOf))
 					continue
+			
+			if ch in (MoreThan, LessThan):
+				self.step()
+				tokens.append(Token(TT_TEST, ch))
+				continue
 
 			if ch in Digits:
-				#then character is an int token
 				tokens.append(Token(TT_INT, self.build_int()))
 				continue
 
 			if ch in (Plus, Minus):
-				#token is an operator
 				self.step()
 				tokens.append(Token(TT_OP, ch))
 				continue
 
 			if ch == Quote:
-				#then character is a string token
 				tokens.append(Token(TT_STRING, self.build_string()))
 				continue
 			
 			if ch == Equal:
-				#equal token
 				self.step()
 				tokens.append(Token(TT_SYMBOL, Equal))
 				continue
 			
-			if ch == L_Paranth:
-				#left parathesis
+			if ch in (L_Paranth, R_Paranth, L_Curl, R_Curl):
 				self.step()
-				tokens.append(Token(TT_BRACK, L_Paranth))
-				continue
-				
-			if ch == R_Paranth:
-				#right parathesis
-				self.step()
-				tokens.append(Token(TT_BRACK, R_Paranth))
-				continue
-				
-			if ch == L_Curl:
-				#left curly bracket
-				self.step()
-				tokens.append(Token(TT_BRACK, L_Curl))
-				continue
-				
-			if ch == R_Curl:
-				#right curly bracket
-				self.step()
-				tokens.append(Token(TT_BRACK, R_Curl))
+				tokens.append(Token(TT_BRACK, ch))
 				continue
 			
 			#make a variable name
@@ -238,6 +224,13 @@ class Interpreter(object):
 			self.current_token = Token(TT_EOL, None)
 		else:
 			self.current_token = self.tokens[self.pos]
+		
+	def revert(self, amount):
+		self.pos -= amount
+		if self.pos < 0:
+			self.current_token = Token(TT_EOL, None)
+		else:
+			self.current_token = self.tokens[self.pos]
 	
 	def eat_type(self, type):
 		token = self.current_token
@@ -275,6 +268,33 @@ class Interpreter(object):
 			if self.current_token.type == TT_METHOD:
 				#Is a method, check depending what the method does
 				token = self.current_token
+
+				if token.value == While: # 'while(i < 6) {var i = i + 1}'
+					self.step()
+					self.eat_value(L_Paranth)
+					var_name = self.eat_type(TT_VAR).value
+					test_type = self.eat_type(TT_TEST).value
+					comparative = int(self.eat_type(TT_INT).value)
+					self.eat_value(R_Paranth)
+					self.eat_value(L_Curl)
+					looped_tokens = []
+					self.memory_depth = self.depth
+					while (self.current_token.value != R_Curl or self.depth != self.memory_depth) and self.current_token.value != None:
+						token = self.current_token
+						if token.value == L_Curl:
+							self.depth += 1
+						elif token.value == R_Curl:
+							self.depth -= 1
+						looped_tokens.append(token)
+						self.step()
+					self.eat_value(R_Curl)
+					if test_type == LessThan:
+						while vars[var_name] < comparative:
+							l = Interpreter(Lexer("_"))
+							l.tokens = looped_tokens
+							l.current_token = l.tokens[l.pos]
+							l.execute_tokens()
+
 
 				if token.value == Print: # 'print("something");'
 					self.step()
@@ -314,10 +334,12 @@ class Interpreter(object):
 
 		self.eat_value(Equal) # 6;
 
-		if self.current_token.type is TT_INT:
+		if self.current_token.type in (TT_INT, TT_VAR):
 			value = self.make_int()
-		elif self.current_token.type is TT_STRING:
-			value = self.eat_type(TT_STRING).value
+		elif self.current_token.type == TT_STRING:
+			value = self.make_string()
+		else:
+			self.error()
 		self.eat_type(TT_EOL)
 
 		vars.update({name: value})
@@ -342,16 +364,31 @@ class Interpreter(object):
 		return result
 	
 	def make_int(self):
-		result = self.current_token.value
+		if self.current_token.type == TT_VAR:
+			result = int(vars[self.current_token.value])
+		elif self.current_token.type == TT_INT:
+			result = self.current_token.value
+		else:
+			self.error()
 		self.step()
 		while self.current_token.type == TT_OP:
 			token = self.current_token
 			if token.value == Plus:
 				self.step()
-				result += self.current_token.value
+				if self.current_token.type == TT_VAR:
+					result += int(vars[self.current_token.value])
+				elif self.current_token.type == TT_INT:
+					result += self.current_token.value
+				else:
+					self.error()
 			else:
 				self.step()
-				result += self.current_token.value
+				if self.current_token.type == TT_VAR:
+					result -= int(vars[self.current_token.value])
+				elif self.current_token.type == TT_INT:
+					result -= self.current_token.value
+				else:
+					self.error()
 			self.step()
 		return result
 	
@@ -389,15 +426,15 @@ class Interpreter(object):
 
 		#do the test
 		if test == EqualTo:
-			if left == right:
-				return True
-			else:
-				return False
-		else:
-			if left != right:
-				return True
-			else:
-				return False
+			return True if left == right else False
+		elif test == DifferentThan:
+			return True if left != right else False
+		elif test == MoreThan:
+			return True if left > right else False
+		elif test == LessThan:
+			return True if left < right else False
+		elif test == MultipleOf:
+			return True if (left % right) == 0 else False
 
 
 """
