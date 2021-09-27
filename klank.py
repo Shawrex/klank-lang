@@ -8,6 +8,7 @@ TT_STRING =		'STRING'
 TT_OP =			'OPERATOR'
 TT_KWORD =		'KEYWORD'
 TT_BRACK =		'BRACKETS'
+TT_TEST =		'TEST_SYMBOL'
 TT_SYMBOL =		'SYMBOL'
 TT_METHOD =		'METHOD'
 
@@ -21,12 +22,13 @@ Var = 'var'
 Digits = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
 L_Paranth, R_Paranth = '(', ')'
 L_Curl, R_Curl = '{', '}'
-Quote, Comparison = '"', '=='
+Quote = '"'
+EqualTo, DifferentThan = '==', '!='
 Equal, Plus, Minus = '=', '+', '-'
 Print, If = 'print', 'if'
 
 vars = {}
-BannedChars = (Eol, L_Paranth, R_Paranth, L_Curl, R_Curl, Quote, Equal, Plus, Minus)
+BannedChars = (Eol, L_Paranth, R_Paranth, L_Curl, R_Curl, Quote, Equal, Plus, Minus, '!')
 
 
 
@@ -97,10 +99,16 @@ class Lexer(object):
 					tokens.append(Token(TT_METHOD, If))
 					continue
 			
-			if ch == Comparison[0]:
+			if ch == EqualTo[0]:
 				#Comparison ?
-				if (self.build_misc_name(Comparison)):
-					tokens.append(Token(TT_SYMBOL, Comparison))
+				if (self.build_misc_name(EqualTo)):
+					tokens.append(Token(TT_TEST, EqualTo))
+					continue
+				
+			if ch == DifferentThan[0]:
+				#Comparison ?
+				if (self.build_misc_name(DifferentThan)):
+					tokens.append(Token(TT_TEST, DifferentThan))
 					continue
 
 			if ch in Digits:
@@ -248,11 +256,9 @@ class Interpreter(object):
 			self.error()
 	
 	def level_down(self):
-		while self.current_token.value == R_Curl:
+		while self.current_token.value == R_Curl and self.depth > 0:
 			self.step()
 			self.depth -= 1
-		if self.depth < 0:
-			self.error()
 
 	def execute_tokens(self):
 		while self.current_token is not None and self.current_token.value is not None:
@@ -286,16 +292,18 @@ class Interpreter(object):
 						self.eat_value(R_Paranth)
 						self.eat_value(L_Curl)
 						self.depth += 1
-					else: 								##################### A REVOIR
+					else:
+						self.eat_value(R_Paranth)
+						self.eat_value(L_Curl)
 						self.memory_depth = self.depth
-						while self.current_token.value is not R_Curl and self.depth != self.memory_depth:
-							if self.current_token.value == L_Curl:
+						while (self.current_token.value != R_Curl or self.depth != self.memory_depth) and self.current_token.value != None:
+							token = self.current_token
+							if token.value == L_Curl:
 								self.depth += 1
-								print(self.depth - self.memory_depth)
-							elif self.current_token.value == R_Curl:
+							elif token.value == R_Curl:
 								self.depth -= 1
-								print(self.depth - self.memory_depth)
 							self.step()
+						self.eat_value(R_Curl)
 					self.level_down()
 
 	
@@ -363,7 +371,7 @@ class Interpreter(object):
 			self.error()
 
 		#get test:
-		self.eat_value(Comparison)
+		test = self.eat_type(TT_TEST).value
 
 		#get the second value
 		if self.current_token.type == TT_INT:
@@ -380,11 +388,16 @@ class Interpreter(object):
 			self.error()
 
 		#do the test
-		if left == right:
-			return True
+		if test == EqualTo:
+			if left == right:
+				return True
+			else:
+				return False
 		else:
-			return False
-
+			if left != right:
+				return True
+			else:
+				return False
 
 
 """
