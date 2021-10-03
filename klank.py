@@ -192,6 +192,7 @@ class Interpreter(object):
 			self.error("eat")
 	
 	def englobe(self):
+		"""you have to delete the last token i think"""
 		tokens = []
 		depth = self.depth
 		self.depth += 1
@@ -203,6 +204,7 @@ class Interpreter(object):
 			tokens.append(self.current_token)
 			self.step()
 		self.revert()
+		tokens.pop()
 		return tokens
 
 	def build_token_list(self, comps):
@@ -246,6 +248,8 @@ class Interpreter(object):
 					expression.append(self.englobe())
 					expression.append(self.eat(R_Curl))
 				Token_Executer("if_statement", expression)
+
+				"""ENGLOBE() causes issues, it takes in the parathesis...."""
 
 			else:
 				self.error("unexpected_token")
