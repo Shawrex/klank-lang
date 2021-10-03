@@ -67,6 +67,7 @@ class Lexer(object):
 			sw = {
 				Print: TT_METHOD,
 				While: TT_METHOD,
+				Else: TT_KWORD,
 				Var: TT_KWORD,
 				If: TT_KWORD,
 				EqualTo: TT_COMP,
@@ -76,7 +77,11 @@ class Lexer(object):
 				MultipleOf: TT_COMP,
 				Equal: TT_SYMBOL,
 				Plus: TT_OP,
-				Minus: TT_OP
+				Minus: TT_OP,
+				L_Paranth: TT_BRACK,
+				R_Paranth: TT_BRACK,
+				L_Curl: TT_BRACK,
+				R_Curl: TT_BRACK
 			}
 			token.type = sw.get(token.value)
 			tokens.append(token)
@@ -110,6 +115,7 @@ class Lexer(object):
 		while self.current_char is not None and self.current_char.isdigit():
 			result += self.current_char
 			self.step()
+		self.revert()
 		return int(result)
 
 	def build_string(self):
@@ -189,7 +195,7 @@ class Interpreter(object):
 		tokens = []
 		depth = self.depth
 		self.depth += 1
-		while self.current_token.type is not R_Curl and self.depth != depth:
+		while self.depth != depth:
 			if self.current_token.value == L_Curl:
 				self.depth += 1
 			elif self.current_token.value == R_Curl:
@@ -211,7 +217,6 @@ class Interpreter(object):
 			THIS IS AN IMPORTANT PART
 			"""
 			token = self.current_token
-			print(token)
 
 			if token.type == TT_VAR:
 				# example = 42;
@@ -234,8 +239,12 @@ class Interpreter(object):
 			if token.value == If:
             	# if(example==42) { print("hello"); }
 				expression = self.build_token_list([If, L_Paranth, TT_VALUE, TT_COMP, TT_VALUE, R_Paranth, L_Curl])
-				expression.extend(self.englobe())
+				expression.append(self.englobe())
 				expression.append(self.eat(R_Curl))
+				if self.current_token.value == Else:
+					expression.extend(self.build_token_list([Else, L_Curl]))
+					expression.append(self.englobe())
+					expression.append(self.eat(R_Curl))
 				Token_Executer("if_statement", expression)
 
 			else:
@@ -256,7 +265,7 @@ def main():
 
 	lexer = Lexer(text)
 	interpeter = Interpreter(lexer)
-	interpeter.print_tokens()
+	#interpeter.print_tokens()
 	interpeter.execute_tokens()
 
 	##input('\n\nPress enter to finish...')

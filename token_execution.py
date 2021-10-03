@@ -51,7 +51,7 @@ class Token_Executer(object):
             if self.run_test(a, comp, b):
                 from klank import Interpreter, Lexer
                 inte = Interpreter(Lexer("("))
-                inte.tokens = self.tokens[7:len(self.tokens)-2]
+                inte.tokens = self.tokens[7]
+                inte.current_token = inte.tokens[inte.pos]
                 #inte.print_tokens()
-
-            
+                inte.execute_tokens()

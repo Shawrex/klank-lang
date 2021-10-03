@@ -26,7 +26,7 @@ L_Curl, R_Curl = '{', '}'
 Quote = '"'
 EqualTo, DifferentThan, MoreThan, LessThan, MultipleOf = '==', '!=', '>', '<', '%='
 Equal, Plus, Minus = '=', '+', '-'
-Print, If, While = 'print', 'if', 'while'
+Print, If, Else, While = 'print', 'if', 'else', 'while'
 
 vars = {}
 BannedChars = (Eol, L_Paranth, R_Paranth, L_Curl, R_Curl, Quote, Equal, Plus, Minus, '!')
