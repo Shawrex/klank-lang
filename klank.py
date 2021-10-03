@@ -143,6 +143,8 @@ class Interpreter(object):
 		self.pos = 0
 		self.current_token = self.tokens[self.pos]
 
+		self.depth = 0
+
 	def error(self, type):
 		if type == "eat":
 			issue = f"Issue while eating, check upper logs. Issue is : {self.current_token} at position : {self.pos}"
@@ -171,22 +173,36 @@ class Interpreter(object):
 		else:
 			self.current_token = self.tokens[self.pos]
 
-	def eat(self, type):
+	def eat(self, comp):
 		token = self.current_token
-		if type == TT_VALUE and token.type in TT_VALUE:
+		if comp == TT_VALUE and token.type in TT_VALUE:
 			self.step()
 			return token
-		if type == token.type:
+		if comp == token.type or comp == token.value:
 			self.step()
 			return token
 		else:
-			print(f"Checked TT was: {type}, but it was actually a {token.type}")
+			print(f"Checked was:{comp}, but it was actually a {token}")
 			self.error("eat")
-
-	def build_token_list(self, types):
+	
+	def englobe(self):
 		tokens = []
-		for type in types:
-			tokens.append(self.eat(type))
+		depth = self.depth
+		self.depth += 1
+		while self.current_token.type is not R_Curl and self.depth != depth:
+			if self.current_token.value == L_Curl:
+				self.depth += 1
+			elif self.current_token.value == R_Curl:
+				self.depth -= 1
+			tokens.append(self.current_token)
+			self.step()
+		self.revert()
+		return tokens
+
+	def build_token_list(self, comps):
+		tokens = []
+		for comp in comps:
+			tokens.append(self.eat(comp))
 		return tokens
 
 	def execute_tokens(self):
@@ -195,18 +211,32 @@ class Interpreter(object):
 			THIS IS AN IMPORTANT PART
 			"""
 			token = self.current_token
+			print(token)
 
 			if token.type == TT_VAR:
-				# example = 42
-				expression = self.build_token_list([TT_VAR, TT_SYMBOL, TT_VALUE])
+				# example = 42;
+				expression = self.build_token_list([TT_VAR, Equal, TT_VALUE, Eol])
 				Token_Executer("set_var", expression)
 				continue
 
-			elif token.value == Var:
-				# var example = 42
-				expression = self.build_token_list([TT_KWORD, TT_VAR, TT_SYMBOL, TT_VALUE])
+			if token.value == Var:
+				# var example = 42;
+				expression = self.build_token_list([Var, TT_VAR, Equal, TT_VALUE, Eol])
 				Token_Executer("new_var", expression)
 				continue
+				
+			if token.value == Print:
+				# print(example);
+				expression = self.build_token_list([Print, L_Paranth, TT_VALUE, R_Paranth, Eol])
+				Token_Executer("print", expression)
+				continue
+				
+			if token.value == If:
+            	# if(example==42) { print("hello"); }
+				expression = self.build_token_list([If, L_Paranth, TT_VALUE, TT_COMP, TT_VALUE, R_Paranth, L_Curl])
+				expression.extend(self.englobe())
+				expression.append(self.eat(R_Curl))
+				Token_Executer("if_statement", expression)
 
 			else:
 				self.error("unexpected_token")
