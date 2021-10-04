@@ -182,7 +182,10 @@ class Interpreter(object):
 	def eat(self, comp):
 		token = self.current_token
 		if comp == TT_VALUE and token.type in TT_VALUE:
-			self.step()
+			if token.type == TT_VAR:
+				vars.update({token.value: self.build_value()})
+			else:
+				token.value = self.build_value()
 			return token
 		if comp == token.type or comp == token.value:
 			self.step()
@@ -191,8 +194,28 @@ class Interpreter(object):
 			print(f"Checked was:{comp}, but it was actually a {token}")
 			self.error("eat")
 	
+	def extract_value(self, token):
+		if token.type == TT_INT or token.type == TT_STRING:
+		    value = token.value
+		else:
+			value = vars[token.value]
+		return value
+	
+	def build_value(self):
+		result = self.extract_value(self.current_token)
+		self.step()
+		while self.current_token.type == TT_OP:
+			op = self.current_token.value
+			self.step()
+			if op == Plus:
+				result += self.extract_value(self.current_token)
+				self.step()
+			else:
+				result -= self.extract_value(self.current_token)
+				self.step()
+		return result
+	
 	def englobe(self):
-		"""you have to delete the last token i think"""
 		tokens = []
 		depth = self.depth
 		self.depth += 1
@@ -226,20 +249,20 @@ class Interpreter(object):
 				Token_Executer("set_var", expression)
 				continue
 
-			if token.value == Var:
+			elif token.value == Var:
 				# var example = 42;
 				expression = self.build_token_list([Var, TT_VAR, Equal, TT_VALUE, Eol])
 				Token_Executer("new_var", expression)
 				continue
 				
-			if token.value == Print:
+			elif token.value == Print:
 				# print(example);
 				expression = self.build_token_list([Print, L_Paranth, TT_VALUE, R_Paranth, Eol])
 				Token_Executer("print", expression)
 				continue
 				
-			if token.value == If:
-            	# if(example==42) { print("hello"); }
+			elif token.value == If:
+            	# if(example==42) { print("hello"); } else { print("goodbye!"); }
 				expression = self.build_token_list([If, L_Paranth, TT_VALUE, TT_COMP, TT_VALUE, R_Paranth, L_Curl])
 				expression.append(self.englobe())
 				expression.append(self.eat(R_Curl))
@@ -248,8 +271,13 @@ class Interpreter(object):
 					expression.append(self.englobe())
 					expression.append(self.eat(R_Curl))
 				Token_Executer("if_statement", expression)
-
-				"""ENGLOBE() causes issues, it takes in the parathesis...."""
+			
+			elif token.value == While:
+				# while(i==42) { print("hello!"); }
+				expression = self.build_token_list([While, L_Paranth, TT_VALUE, TT_COMP, TT_VALUE, R_Paranth, L_Curl])
+				expression.append(self.englobe())
+				expression.append(self.eat(R_Curl))
+				Token_Executer("while_loop", expression)
 
 			else:
 				self.error("unexpected_token")
